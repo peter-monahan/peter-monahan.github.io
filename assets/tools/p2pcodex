@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Serverless P2P Video / Audio Call</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #374151;
+      --accent: #60a5fa;
+      --danger: #f87171;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, .18), transparent 32rem),
+        radial-gradient(circle at bottom right, rgba(52, 211, 153, .12), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 12px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.8rem, 3vw, 3rem);
+      letter-spacing: -0.04em;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+      max-width: 850px;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: rgba(17, 24, 39, .86);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      margin: 0;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(31, 41, 55, .55);
+    }
+
+    .content {
+      padding: 18px;
+    }
+
+    .videos {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 860px) {
+      .videos { grid-template-columns: 1fr; }
+    }
+
+    .video-wrap {
+      position: relative;
+      background: #020617;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      min-height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      min-height: 260px;
+      object-fit: cover;
+      background: #020617;
+    }
+
+    .label {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(2, 6, 23, .72);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,.12);
+      font-size: .82rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 13px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: transform .08s ease, border-color .15s ease, background .15s ease, opacity .15s ease;
+    }
+
+    button:hover { border-color: rgba(96, 165, 250, .65); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    .primary {
+      background: linear-gradient(180deg, rgba(96,165,250,.35), rgba(96,165,250,.18));
+      border-color: rgba(96,165,250,.75);
+    }
+
+    .danger {
+      background: linear-gradient(180deg, rgba(248,113,113,.28), rgba(248,113,113,.12));
+      border-color: rgba(248,113,113,.62);
+    }
+
+    .ok {
+      background: linear-gradient(180deg, rgba(52,211,153,.28), rgba(52,211,153,.12));
+      border-color: rgba(52,211,153,.62);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 170px;
+      resize: vertical;
+      border-radius: 14px;
+      background: #020617;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .85rem;
+      line-height: 1.45;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: rgba(96, 165, 250, .8);
+      box-shadow: 0 0 0 3px rgba(96,165,250,.12);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: .92rem;
+      line-height: 1.45;
+      margin: 0 0 12px;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 700px) {
+      .status-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    .status {
+      border: 1px solid var(--border);
+      background: rgba(2,6,23,.35);
+      border-radius: 14px;
+      padding: 10px;
+      min-height: 58px;
+    }
+
+    .status .k {
+      color: var(--muted);
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 4px;
+    }
+
+    .status .v {
+      font-size: .9rem;
+      word-break: break-word;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--warn);
+      display: inline-block;
+    }
+
+    .dot.ok { background: var(--ok); }
+    .dot.bad { background: var(--danger); }
+
+    .steps {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .steps strong { color: var(--text); }
+
+    .small {
+      font-size: .86rem;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-top: 12px;
+    }
+
+    code {
+      background: rgba(2,6,23,.5);
+      border: 1px solid rgba(255,255,255,.09);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Serverless P2P Video / Audio Call</h1>
+    <p class="sub">
+      A single-file WebRTC calling page with no signaling server. Two people exchange the generated connection text manually by copy/paste.
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Call</h2>
+      <div class="content">
+        <div class="videos">
+          <div class="video-wrap">
+            <video id="localVideo" autoplay playsinline muted></video>
+            <span class="label">You</span>
+          </div>
+          <div class="video-wrap">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <span class="label">Remote</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="startBtn" class="primary">Start camera + mic</button>
+          <button id="offerBtn">Create offer</button>
+          <button id="answerBtn">Create answer</button>
+          <button id="applyBtn" class="ok">Apply remote signal</button>
+          <button id="copyBtn">Copy local signal</button>
+          <button id="muteBtn" disabled>Mute mic</button>
+          <button id="cameraBtn" disabled>Turn camera off</button>
+          <button id="screenBtn" disabled>Share screen</button>
+          <button id="hangupBtn" class="danger">Hang up</button>
+        </div>
+
+        <div class="status-row">
+          <div class="status">
+            <div class="k">Signaling</div>
+            <div class="v pill"><span id="signalDot" class="dot"></span><span id="signalState">new</span></div>
+          </div>
+          <div class="status">
+            <div class="k">ICE</div>
+            <div class="v pill"><span id="iceDot" class="dot"></span><span id="iceState">new</span></div>
+          </div>
+          <div class="status">
+            <div class="k">Connection</div>
+            <div class="v pill"><span id="connDot" class="dot"></span><span id="connState">new</span></div>
+          </div>
+          <div class="status">
+            <div class="k">Local media</div>
+            <div class="v" id="mediaState">not started</div>
+          </div>
+        </div>
+
+        <p class="small">
+          Camera and microphone access usually requires <code>https://</code> or <code>localhost</code>.
+          For a direct peer connection across many networks, this page uses public STUN servers. Some strict NAT/firewall setups require TURN relay, which is not serverless.
+        </p>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Local signal</h2>
+        <div class="content">
+          <p class="hint">Send this whole block to the other person.</p>
+          <textarea id="localSignal" spellcheck="false" placeholder="Your generated offer or answer will appear here..."></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Remote signal</h2>
+        <div class="content">
+          <p class="hint">Paste the other person’s signal here, then click “Apply remote signal.”</p>
+          <textarea id="remoteSignal" spellcheck="false" placeholder="Paste remote offer or answer here..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>How to connect</h2>
+      <div class="content">
+        <ol class="steps">
+          <li>Both people open this same HTML page.</li>
+          <li>Both click <strong>Start camera + mic</strong>.</li>
+          <li>Caller clicks <strong>Create offer</strong>, copies <strong>Local signal</strong>, and sends it to callee.</li>
+          <li>Callee pastes it into <strong>Remote signal</strong> and clicks <strong>Apply remote signal</strong>.</li>
+          <li>Callee clicks <strong>Create answer</strong>, copies <strong>Local signal</strong>, and sends it to caller.</li>
+          <li>Caller pastes the answer into <strong>Remote signal</strong> and clicks <strong>Apply remote signal</strong>.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const localVideo = $("localVideo");
+    const remoteVideo = $("remoteVideo");
+    const localSignal = $("localSignal");
+    const remoteSignal = $("remoteSignal");
+
+    const startBtn = $("startBtn");
+    const offerBtn = $("offerBtn");
+    const answerBtn = $("answerBtn");
+    const applyBtn = $("applyBtn");
+    const copyBtn = $("copyBtn");
+    const muteBtn = $("muteBtn");
+    const cameraBtn = $("cameraBtn");
+    const screenBtn = $("screenBtn");
+    const hangupBtn = $("hangupBtn");
+
+    const signalState = $("signalState");
+    const iceState = $("iceState");
+    const connState = $("connState");
+    const mediaState = $("mediaState");
+
+    const signalDot = $("signalDot");
+    const iceDot = $("iceDot");
+    const connDot = $("connDot");
+
+    let pc;
+    let localStream;
+    let screenStream;
+    let makingOffer = false;
+
+    const rtcConfig = {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:global.stun.twilio.com:3478" }
+      ]
+    };
+
+    function setDot(dot, state) {
+      dot.className = "dot";
+      if (["connected", "completed", "stable"].includes(state)) dot.classList.add("ok");
+      if (["failed", "closed", "disconnected"].includes(state)) dot.classList.add("bad");
+    }
+
+    function updateStatus() {
+      if (!pc) {
+        signalState.textContent = "new";
+        iceState.textContent = "new";
+        connState.textContent = "new";
+        signalDot.className = "dot";
+        iceDot.className = "dot";
+        connDot.className = "dot";
+        return;
+      }
+
+      signalState.textContent = pc.signalingState;
+      iceState.textContent = pc.iceConnectionState;
+      connState.textContent = pc.connectionState;
+
+      setDot(signalDot, pc.signalingState);
+      setDot(iceDot, pc.iceConnectionState);
+      setDot(connDot, pc.connectionState);
+    }
+
+    function setControlsForMedia(enabled) {
+      muteBtn.disabled = !enabled;
+      cameraBtn.disabled = !enabled;
+      screenBtn.disabled = !enabled;
+    }
+
+    function ensurePeerConnection() {
+      if (pc) return pc;
+
+      pc = new RTCPeerConnection(rtcConfig);
+
+      pc.oniceconnectionstatechange = updateStatus;
+      pc.onconnectionstatechange = updateStatus;
+      pc.onsignalingstatechange = updateStatus;
+
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+        if (remoteVideo.srcObject !== stream) {
+          remoteVideo.srcObject = stream;
+        }
+      };
+
+      pc.onicecandidate = () => {
+        // Candidates are bundled after ICE gathering completes.
+      };
+
+      if (localStream) {
+        for (const track of localStream.getTracks()) {
+          pc.addTrack(track, localStream);
+        }
+      }
+
+      updateStatus();
+      return pc;
+    }
+
+    async function startMedia() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user"
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+
+        localVideo.srcObject = localStream;
+        mediaState.textContent = "camera + mic active";
+        setControlsForMedia(true);
+
+        if (pc) {
+          for (const track of localStream.getTracks()) {
+            const alreadyAdded = pc.getSenders().some(sender => sender.track && sender.track.kind === track.kind);
+            if (!alreadyAdded) pc.addTrack(track, localStream);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Could not access camera/microphone: " + err.message);
+      }
+    }
+
+    function waitForIceGatheringComplete(peerConnection) {
+      if (peerConnection.iceGatheringState === "complete") return Promise.resolve();
+
+      return new Promise(resolve => {
+        function checkState() {
+          if (peerConnection.iceGatheringState === "complete") {
+            peerConnection.removeEventListener("icegatheringstatechange", checkState);
+            resolve();
+          }
+        }
+        peerConnection.addEventListener("icegatheringstatechange", checkState);
+      });
+    }
+
+    function encodeDescription(description) {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(description))));
+    }
+
+    function decodeDescription(signal) {
+      return JSON.parse(decodeURIComponent(escape(atob(signal.trim()))));
+    }
+
+    async function createOffer() {
+      try {
+        ensurePeerConnection();
+        makingOffer = true;
+
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true
+        });
+
+        await pc.setLocalDescription(offer);
+        localSignal.value = "Gathering ICE candidates. Please wait...";
+        await waitForIceGatheringComplete(pc);
+
+        localSignal.value = encodeDescription(pc.localDescription);
+        updateStatus();
+      } catch (err) {
+        console.error(err);
+        alert("Could not create offer: " + err.message);
+      } finally {
+        makingOffer = false;
+      }
+    }
+
+    async function createAnswer() {
+      try {
+        ensurePeerConnection();
+
+        if (!pc.remoteDescription) {
+          alert("Apply the caller's offer first, then create an answer.");
+          return;
+        }
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        localSignal.value = "Gathering ICE candidates. Please wait...";
+        await waitForIceGatheringComplete(pc);
+
+        localSignal.value = encodeDescription(pc.localDescription);
+        updateStatus();
+      } catch (err) {
+        console.error(err);
+        alert("Could not create answer: " + err.message);
+      }
+    }
+
+    async function applyRemoteSignal() {
+      try {
+        ensurePeerConnection();
+
+        const raw = remoteSignal.value.trim();
+        if (!raw) {
+          alert("Paste a remote signal first.");
+          return;
+        }
+
+        const description = decodeDescription(raw);
+        await pc.setRemoteDescription(description);
+
+        updateStatus();
+      } catch (err) {
+        console.error(err);
+        alert("Could not apply remote signal. Make sure you pasted the entire block.\n\n" + err.message);
+      }
+    }
+
+    async function copyLocalSignal() {
+      const text = localSignal.value.trim();
+      if (!text || text.startsWith("Gathering")) {
+        alert("No completed local signal to copy yet.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = "Copied";
+        setTimeout(() => copyBtn.textContent = "Copy local signal", 1200);
+      } catch {
+        localSignal.select();
+        document.execCommand("copy");
+      }
+    }
+
+    function toggleMic() {
+      if (!localStream) return;
+
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (!audioTrack) return;
+
+      audioTrack.enabled = !audioTrack.enabled;
+      muteBtn.textContent = audioTrack.enabled ? "Mute mic" : "Unmute mic";
+      mediaState.textContent = audioTrack.enabled ? "camera + mic active" : "mic muted";
+    }
+
+    function toggleCamera() {
+      if (!localStream) return;
+
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (!videoTrack) return;
+
+      videoTrack.enabled = !videoTrack.enabled;
+      cameraBtn.textContent = videoTrack.enabled ? "Turn camera off" : "Turn camera on";
+      mediaState.textContent = videoTrack.enabled ? "camera + mic active" : "camera off";
+    }
+
+    async function shareScreen() {
+      try {
+        ensurePeerConnection();
+
+        const videoSender = pc.getSenders().find(sender => sender.track && sender.track.kind === "video");
+        if (!videoSender) {
+          alert("Start camera first before sharing screen.");
+          return;
+        }
+
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const screenTrack = screenStream.getVideoTracks()[0];
+
+        await videoSender.replaceTrack(screenTrack);
+        localVideo.srcObject = screenStream;
+        screenBtn.textContent = "Sharing screen";
+        mediaState.textContent = "screen sharing";
+
+        screenTrack.onended = async () => {
+          const cameraTrack = localStream && localStream.getVideoTracks()[0];
+          if (cameraTrack) {
+            await videoSender.replaceTrack(cameraTrack);
+            localVideo.srcObject = localStream;
+            screenBtn.textContent = "Share screen";
+            mediaState.textContent = "camera + mic active";
+          }
+        };
+      } catch (err) {
+        if (err.name !== "NotAllowedError") {
+          console.error(err);
+          alert("Could not share screen: " + err.message);
+        }
+      }
+    }
+
+    function hangUp() {
+      if (pc) {
+        pc.getSenders().forEach(sender => sender.track && sender.track.stop());
+        pc.close();
+      }
+
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+
+      if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+      }
+
+      pc = null;
+      localStream = null;
+      screenStream = null;
+      localVideo.srcObject = null;
+      remoteVideo.srcObject = null;
+      localSignal.value = "";
+      remoteSignal.value = "";
+      mediaState.textContent = "not started";
+      muteBtn.textContent = "Mute mic";
+      cameraBtn.textContent = "Turn camera off";
+      screenBtn.textContent = "Share screen";
+      setControlsForMedia(false);
+      updateStatus();
+    }
+
+    startBtn.addEventListener("click", startMedia);
+    offerBtn.addEventListener("click", createOffer);
+    answerBtn.addEventListener("click", createAnswer);
+    applyBtn.addEventListener("click", applyRemoteSignal);
+    copyBtn.addEventListener("click", copyLocalSignal);
+    muteBtn.addEventListener("click", toggleMic);
+    cameraBtn.addEventListener("click", toggleCamera);
+    screenBtn.addEventListener("click", shareScreen);
+    hangupBtn.addEventListener("click", hangUp);
+
+    updateStatus();
+
+    window.addEventListener("beforeunload", () => {
+      if (pc) pc.close();
+      if (localStream) localStream.getTracks().forEach(track => track.stop());
+      if (screenStream) screenStream.getTracks().forEach(track => track.stop());
+    });
+  </script>
+</body>
+</html>
