@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serverless P2P Call</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #f9f9f9; color: #333; }
+        .video-container { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .video-box { flex: 1; min-width: 300px; }
+        video { width: 100%; background: #222; border-radius: 8px; aspect-ratio: 4/3; object-fit: cover; transform: scaleX(-1); }
+        .controls { display: flex; flex-direction: column; gap: 1rem; background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        textarea { width: 100%; height: 80px; margin-top: 0.5rem; font-family: monospace; font-size: 0.85rem; padding: 0.5rem; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
+        button { padding: 0.75rem 1.5rem; cursor: pointer; background-color: rgb(96, 204, 96); border: none; border-radius: 4px; color: #000; font-weight: bold; font-size: 1rem; transition: opacity 0.2s; }
+        button:hover { opacity: 0.8; }
+        .step { border-left: 4px solid rgb(96, 204, 96); padding-left: 1rem; margin-bottom: 1rem; }
+        h3 { margin-top: 0; }
+    </style>
+</head>
+<body>
+
+    <h2>Serverless WebRTC Call</h2>
+    
+    <div class="video-container">
+        <div class="video-box">
+            <h3>You</h3>
+            <video id="localVideo" autoplay muted playsinline></video>
+        </div>
+        <div class="video-box">
+            <h3>Them</h3>
+            <video id="remoteVideo" autoplay playsinline></video>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="step">
+            <button id="btnStart">1. Start Camera & Mic</button>
+        </div>
+
+        <div class="step">
+            <h3>Your Connection Code</h3>
+            <button id="btnCreateOffer">Create Offer (Caller)</button>
+            <button id="btnCreateAnswer" style="margin-left: 10px;">Create Answer (Receiver)</button>
+            <textarea id="myCode" placeholder="Your generated code will appear here. Wait 2 seconds after clicking a button above, then copy this and send it to the other person." readonly></textarea>
+        </div>
+
+        <div class="step">
+            <h3>Their Connection Code</h3>
+            <textarea id="theirCode" placeholder="Paste the code you received from the other person here."></textarea>
+            <button id="btnApplyTheirCode" style="margin-top: 0.5rem;">Connect / Apply Code</button>
+        </div>
+    </div>
+
+    <script>
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const myCodeInput = document.getElementById('myCode');
+        const theirCodeInput = document.getElementById('theirCode');
+
+        // Initialize WebRTC Peer Connection with a free public STUN server
+        const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        const pc = new RTCPeerConnection(servers);
+
+        let localStream;
+
+        // Step 1: Get media devices
+        document.getElementById('btnStart').onclick = async () => {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            } catch (error) {
+                alert("Camera/Mic access denied or unavailable.");
+                console.error(error);
+            }
+        };
+
+        // Handle incoming remote video tracks
+        pc.ontrack = (event) => {
+            if (!remoteVideo.srcObject) {
+                remoteVideo.srcObject = event.streams[0];
+            }
+        };
+
+        // Crucial for Serverless: Wait for ALL ICE candidates to finish gathering
+        pc.onicegatheringstatechange = () => {
+            if (pc.iceGatheringState === 'complete') {
+                // Compress the JSON to a Base64 string for easier copying
+                myCodeInput.value = btoa(JSON.stringify(pc.localDescription));
+            }
+        };
+
+        // Caller Creates Offer
+        document.getElementById('btnCreateOffer').onclick = async () => {
+            myCodeInput.value = "Gathering network routes... please wait 2-3 seconds.";
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            // The onicegatheringstatechange event will fire when ready
+        };
+
+        // Receiver Applies Offer, then Creates Answer
+        document.getElementById('btnCreateAnswer').onclick = async () => {
+            if (!theirCodeInput.value) return alert("Paste the Caller's code first!");
+            myCodeInput.value = "Gathering network routes... please wait 2-3 seconds.";
+            
+            // Decode Base64 back to JSON
+            const offer = JSON.parse(atob(theirCodeInput.value));
+            await pc.setRemoteDescription(offer);
+            
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            // The onicegatheringstatechange event will fire when ready
+        };
+
+        // Caller Applies Receiver's Answer
+        document.getElementById('btnApplyTheirCode').onclick = async () => {
+            if (!theirCodeInput.value) return alert("Paste the code first!");
+            try {
+                const description = JSON.parse(atob(theirCodeInput.value));
+                // Only set remote description if we haven't already (Caller flow)
+                if (pc.signalingState !== 'stable') {
+                    await pc.setRemoteDescription(description);
+                }
+            } catch (error) {
+                alert("Invalid code pasted.");
+                console.error(error);
+            }
+        };
+    </script>
+</body>
+</html>
